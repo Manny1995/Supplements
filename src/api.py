@@ -1,16 +1,72 @@
 # Created by Immanuel Amirtharaj
 # api.py
 
-import app
 from flask import Flask, request, render_template
 from flask import send_from_directory
 from flask import redirect
+
+from app import app
+
+
 import models
+from models import User
 
 import os
+import binascii
+
+import json
 
 
 
+
+def contains_user(uname, email):
+	res = User.get(username=uname, email=email)
+	return res
+
+
+
+def create_user(uname, fname, lname, email, password):
+	models.open_connection()
+	tok = binascii.b2a_hex(os.urandom(20))
+	User.create(username=uname, first_name=fname, last_name=lname, email=email, password=password, auth_token=tok)
+	models.close_connection()
+	return tok
+
+
+def validate_user_token(token):
+	models.open_connection()
+
+	success = True
+	token = None
+
+	try:
+		tmp = User.get(auth_token=token)
+		token = tmp.auth_token
+	except User.DoesNotExist:
+		success = False
+
+	models.close_connection()
+
+	return {'success' : success, 'token' : token}
+
+
+
+def validate_user(uname, password):
+
+	models.open_connection()
+
+	success = True
+	token = None
+
+	try:
+		tmp = User.get(username=uname, password=password)
+		token = tmp.auth_token
+	except User.DoesNotExist:
+		success = False
+
+	models.close_connection()
+
+	return {'success' : success, 'token' : token}
 
 
 @app.route('/api/supplements/<supplement_id>', methods=['GET', 'POST'])
@@ -20,17 +76,28 @@ def get_supplement_with_id():
 
 
 
-@app.route('/api/login', methods=['GET', 'POST'])
+@app.route('/api/login', methods=['POST'])
 def login():
+	username = request.form['username']
+	password = request.form['password']
 
-	if request.method == 'GET':
-		return render_template('login.html')
+	res = validate_user(username, password)
+	return json.dumps(res)
 
-	else:
-		username = request.form['username']
-		password = request.form['password']
-		return redirect('/', code=302)
 
+
+@app.route('/api/signup', methods=['POST'])
+def signup():
+	print("Entering sign up")
+
+	uname = request.form['username']
+	fname = request.form['firstname']
+	lname = request.form['lastname']
+	email = request.form['email']
+	password = request.form['password']
+
+	tok = create_user(uname, fname, lname, email, password)
+	return tok
 
 
 
